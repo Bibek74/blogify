@@ -14,7 +14,9 @@ class HomeScreen extends StatelessWidget {
       body: const Center(
         child: Text(
           'This is my home page',
-          style: TextStyle(fontSize: 20),
+          style: TextStyle(fontSize: 20,
+          fontWeight: FontWeight.bold,
+          fontFamily: 'Arial'),
         ),
       ),
     );
