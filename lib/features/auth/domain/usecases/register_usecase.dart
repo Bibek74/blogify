@@ -8,7 +8,6 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class RegisterParams extends Equatable{
-
   final String fullName;
   final String email;
   final String phoneNumber;
