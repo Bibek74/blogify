@@ -1,9 +1,9 @@
 import 'dart:async';
-import 'package:blogify/screens/onboarding_screen.dart';
+import 'package:blogify/features/onboarding/presentation/pages/onboarding_screen.dart';
 import 'package:flutter/material.dart';
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({Key? key}) : super(key: key);
+  const SplashScreen({super.key});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -33,13 +33,11 @@ class _SplashScreenState extends State<SplashScreen> {
             // Logo image
             Image.asset(
               "assets/icons/image.png",
-              width: 180,     // tweak to your preference
+              width: 180, // tweak to your preference
               height: 180,
               fit: BoxFit.contain,
             ),
             const SizedBox(height: 20),
-
-          
           ],
         ),
       ),

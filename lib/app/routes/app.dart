@@ -1,4 +1,4 @@
-import 'package:blogify/screens/splash_screen.dart';
+import 'package:blogify/features/splash/presentation/pages/splash_screen.dart';
 import 'package:flutter/material.dart';
 
 

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'login_screen.dart';
+import '../../../auth/presentation/pages/login_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -20,8 +20,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   void _next() {
     if (_page < 2) {
-      _controller.animateToPage(_page + 1,
-          duration: const Duration(milliseconds: 300), curve: Curves.ease);
+      _controller.animateToPage(
+        _page + 1,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.ease,
+      );
     } else {
       _finish();
     }
@@ -64,9 +67,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   const Text(
                     'Blogify',
                     style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white),
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
                 ],
               ),
@@ -74,9 +78,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               Text(
                 title,
                 style: const TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white),
+                  fontSize: 32,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
               ),
               const SizedBox(height: 20),
               Text(
@@ -133,7 +138,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             child: Align(
               alignment: Alignment.bottomCenter,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 24),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 25,
+                  vertical: 24,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -155,17 +163,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       height: 48,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white.withOpacity(0.25),
+                          backgroundColor: Colors.white.withAlpha(64),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                             side: const BorderSide(color: Colors.white),
                           ),
                         ),
                         onPressed: _next,
-                        child: Text(_page < 2 ? 'Next' : 'Get started',
-                            style: const TextStyle(color: Colors.white)),
+                        child: Text(
+                          _page < 2 ? 'Next' : 'Get started',
+                          style: const TextStyle(color: Colors.white),
+                        ),
                       ),
-                    )
+                    ),
                   ],
                 ),
               ),
