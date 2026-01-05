@@ -22,13 +22,11 @@ class RegisterParams extends Equatable{
   @override
   List<Object?> get props => [fullName, email, phoneNumber, password];
 }
-
 // provider for register usecase
 final registerUsecaseProvider = Provider<RegisterUsecase>((ref) {
   final authRepository = ref.read(authRepositoryProvider);
   return RegisterUsecase(authRepository: authRepository);
 });
-
 class RegisterUsecase implements UsecaseWithParms<bool, RegisterParams> {
 
   final IAuthRepository _authRepository;
