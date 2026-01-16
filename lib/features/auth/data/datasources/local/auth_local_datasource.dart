@@ -1,38 +1,69 @@
-
 import 'package:blogify/core/services/hive/hive_service.dart';
+import 'package:blogify/core/services/storage/user_session_service.dart';
 import 'package:blogify/features/auth/data/datasources/auth_datasource.dart';
 import 'package:blogify/features/auth/data/models/auth_hive_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-final authLocalDatasourceProvider = Provider<AuthLocalDatasource>((ref) {
-  final hiveService = ref.watch(hiveServiceProvider);
-  return AuthLocalDatasource(hiveService: hiveService);
+final authLocalDatasourceProvider = Provider<AuthLocalDataSource>((ref) {
+  final hiveService = ref.read(hiveServiceProvider);
+  final userSessionService = ref.read(userSessionServiceProvider);
+  return AuthLocalDataSource(
+    hiveService: hiveService,
+    userSessionService: userSessionService,
+  );
 });
-class AuthLocalDatasource implements IAuthDatasource{
+
+class AuthLocalDataSource implements IAuthLocalDataSource{
 
   final HiveService _hiveService;
+  final UserSessionService _userSessionService;
 
-  AuthLocalDatasource({required HiveService hiveService})
-   : _hiveService = hiveService;
+  AuthLocalDataSource({
+    required HiveService hiveService,
+    required UserSessionService userSessionService,
+  }) : _hiveService = hiveService,
+       _userSessionService = userSessionService;
+
   @override
-  Future<AuthHiveModel?> getCurrentUser() {
-    throw UnimplementedError();
+  Future<AuthHiveModel> register(AuthHiveModel user) async {
+    return await _hiveService.register(user);
   }
-
+      
   @override
-  Future<bool> isEmailExists(String email) {
+  Future<AuthHiveModel?> getCurrentUser() async {
     try {
-      final exists = _hiveService.isEmailExists(email);
-      return Future.value(exists);
+      // Check if user is logged in
+      if (!_userSessionService.isLoggedIn()) {
+        return null;
+      }
+
+      // Get user ID from session
+      final userId = _userSessionService.getCurrentUserId();
+      if (userId == null) {
+        return null;
+      }
+
+      // Fetch user from Hive database
+      return _hiveService.getUserById(userId);
     } catch (e) {
-      return Future.value(false);
+      return null;
     }
   }
+
 
   @override
   Future<AuthHiveModel?> login(String email, String password) async {
     try {
       final user = await _hiveService.loginUser(email, password);
+      if (user != null && user.authId != null) {
+        // Save user session to SharedPreferences : Pachi app restart vayo vani pani user logged in rahos
+        await _userSessionService.saveUserSession(
+          userId: user.authId!,
+          email: user.email,
+          fullName: user.fullName,
+          phoneNumber: user.phoneNumber,
+        );
+      }
       return user;
       } catch (e) {
       return null;
@@ -48,20 +79,13 @@ class AuthLocalDatasource implements IAuthDatasource{
       return Future.value(false);
     }
   }
-
+  
   @override
-  Future<bool> register(AuthHiveModel model) async {
+  Future<AuthHiveModel?> getUserByEmail(String email) async {
     try {
-      // check if email already exists
-      final exists = _hiveService.isEmailExists(model.email);
-      if (exists) throw Exception('Email already exists');
-
-      await _hiveService.registerUser(model);
-      return Future.value(true);
+      return _hiveService.getUserByEmail(email);
     } catch (e) {
-      // ignore: avoid_print
-      print('AuthLocalDatasource.register error: $e');
-      return Future.value(false);
+      return null;
     }
   }
 }

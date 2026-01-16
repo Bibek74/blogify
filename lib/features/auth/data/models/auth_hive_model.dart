@@ -1,4 +1,3 @@
-
 import 'package:blogify/core/constants/hive_table_constants.dart';
 import 'package:blogify/features/auth/domain/entities/auth_entity.dart';
 import 'package:hive/hive.dart';

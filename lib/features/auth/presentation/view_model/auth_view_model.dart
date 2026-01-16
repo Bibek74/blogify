@@ -1,11 +1,9 @@
-
+import 'package:blogify/features/auth/domain/usecases/get_current_usecase.dart';
 import 'package:blogify/features/auth/domain/usecases/login_usecase.dart';
 import 'package:blogify/features/auth/domain/usecases/logout_usecase.dart';
 import 'package:blogify/features/auth/domain/usecases/register_usecase.dart';
 import 'package:blogify/features/auth/presentation/state/auth_state.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../../domain/usecases/get_current_usecase.dart';
 
 final authViewModelProvider = NotifierProvider<AuthViewModel, AuthState>(
   AuthViewModel.new,
