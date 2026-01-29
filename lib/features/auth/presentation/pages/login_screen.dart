@@ -73,7 +73,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 Row(
                   children: [
                     Image.asset(
-                      "assets/icons/blogify_logo.png",
+                      "assets/icons/app_icon.png",
                       width: 45,
                       height: 45,
                     ),
