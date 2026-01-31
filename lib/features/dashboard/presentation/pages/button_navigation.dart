@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import 'add_screen.dart';
 import 'favourite_screen.dart';
-import 'profile_screen.dart';
+import 'profile.dart';
 
 class BottomNavScreen extends StatefulWidget {
   const BottomNavScreen({super.key});
