@@ -17,6 +17,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
+  final _usernameController = TextEditingController(); // ✅ ADDED
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -24,6 +25,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _usernameController.dispose(); // ✅ ADDED
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -32,7 +34,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // --- KEEPING YOUR LOGIC UNTOUCHED ---
     final authState = ref.watch(authViewModelProvider);
 
     ref.listen<AuthState>(authViewModelProvider, (previous, next) {
@@ -56,7 +57,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
         );
       }
     });
-    // ------------------------------------
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
@@ -68,13 +68,18 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [Color(0xFF2C2C2C), Color.fromARGB(255, 2, 126, 168)])
+                colors: [
+                  Color(0xFF2C2C2C),
+                  Color.fromARGB(255, 2, 126, 168),
+                ],
+              ),
             ),
           ),
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 20),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 30, vertical: 20),
                 child: Form(
                   key: _formKey,
                   child: Column(
@@ -101,21 +106,47 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                           const SizedBox(height: 8),
                           const Text(
                             "Join the Blogify community today",
-                            style: TextStyle(color: Colors.white54, fontSize: 14),
+                            style: TextStyle(
+                                color: Colors.white54, fontSize: 14),
                           ),
                         ],
                       ),
 
                       const SizedBox(height: 40),
 
-                      // Name Field
+                      // Full Name Field
                       _buildTextField(
                         label: "Full Name",
                         hint: "John Doe",
                         controller: _nameController,
                         icon: Icons.person_outline_rounded,
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Please enter your name';
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter your name';
+                          }
+                          return null;
+                        },
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // ✅ Username Field (ADDED)
+                      _buildTextField(
+                        label: "Username",
+                        hint: "john_doe",
+                        controller: _usernameController,
+                        icon: Icons.alternate_email_rounded,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter a username';
+                          }
+                          if (value.length < 3) {
+                            return 'Username must be at least 3 characters';
+                          }
+                          // optional: only letters/numbers/underscore
+                          if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(value)) {
+                            return 'Only letters, numbers, and _ allowed';
+                          }
                           return null;
                         },
                       ),
@@ -127,10 +158,13 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                         label: "Email Address",
                         hint: "name@example.com",
                         controller: _emailController,
-                        icon: Icons.alternate_email_rounded,
+                        icon: Icons.email_outlined,
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Please enter your email';
-                          if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter your email';
+                          }
+                          if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                              .hasMatch(value)) {
                             return 'Please enter a valid email';
                           }
                           return null;
@@ -147,10 +181,15 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                         icon: Icons.lock_outline_rounded,
                         isPassword: true,
                         obscure: !showPassword,
-                        onToggle: () => setState(() => showPassword = !showPassword),
+                        onToggle: () =>
+                            setState(() => showPassword = !showPassword),
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Please enter a password';
-                          if (value.length < 6) return 'At least 6 characters required';
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter a password';
+                          }
+                          if (value.length < 6) {
+                            return 'At least 6 characters required';
+                          }
                           return null;
                         },
                       ),
@@ -165,10 +204,15 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                         icon: Icons.verified_user_outlined,
                         isPassword: true,
                         obscure: !showConfirmPassword,
-                        onToggle: () => setState(() => showConfirmPassword = !showConfirmPassword),
+                        onToggle: () => setState(() =>
+                            showConfirmPassword = !showConfirmPassword),
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Please confirm your password';
-                          if (value != _passwordController.text) return 'Passwords do not match';
+                          if (value == null || value.isEmpty) {
+                            return 'Please confirm your password';
+                          }
+                          if (value != _passwordController.text) {
+                            return 'Passwords do not match';
+                          }
                           return null;
                         },
                       ),
@@ -184,11 +228,15 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Text("Already have an account? ", style: TextStyle(color: Colors.white54)),
+                          const Text(
+                            "Already have an account? ",
+                            style: TextStyle(color: Colors.white54),
+                          ),
                           GestureDetector(
                             onTap: () => Navigator.pushReplacement(
                               context,
-                              MaterialPageRoute(builder: (_) => const LoginScreen()),
+                              MaterialPageRoute(
+                                  builder: (_) => const LoginScreen()),
                             ),
                             child: const Text(
                               "Login",
@@ -228,7 +276,14 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(label, style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ),
         TextFormField(
           controller: controller,
@@ -242,7 +297,9 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             suffixIcon: isPassword
                 ? IconButton(
                     icon: Icon(
-                      obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                      obscure
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
                       color: Colors.white38,
                       size: 20,
                     ),
@@ -258,7 +315,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: Colors.blueAccent, width: 1.5),
+              borderSide:
+                  const BorderSide(color: Colors.blueAccent, width: 1.5),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
@@ -266,7 +324,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             ),
             focusedErrorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+              borderSide:
+                  const BorderSide(color: Colors.redAccent, width: 1.5),
             ),
           ),
         ),
@@ -275,14 +334,16 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   }
 
   Widget _buildRegisterButton(AuthState state) {
-    bool isLoading = state.status == AuthStatus.loading;
+    final isLoading = state.status == AuthStatus.loading;
 
     return Container(
       height: 58,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         gradient: !isLoading
-            ? const LinearGradient(colors: [Color(0xFF4285F4), Color(0xFF34A853)])
+            ? const LinearGradient(
+                colors: [Color(0xFF4285F4), Color(0xFF34A853)],
+              )
             : null,
         color: isLoading ? Colors.white10 : null,
       ),
@@ -298,8 +359,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 if (_formKey.currentState!.validate()) {
                   await ref.read(authViewModelProvider.notifier).register(
                         fullName: _nameController.text.trim(),
+                        username: _usernameController.text.trim(), // ✅ FIXED
                         email: _emailController.text.trim(),
-                        phoneNumber: '', // Keeping your logic for phone empty
                         password: _passwordController.text,
                       );
                 }
@@ -308,11 +369,18 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             ? const SizedBox(
                 height: 24,
                 width: 24,
-                child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: Colors.white,
+                ),
               )
             : const Text(
                 "Create Account",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
       ),
     );
