@@ -61,7 +61,7 @@ class AuthLocalDataSource implements IAuthLocalDataSource{
           userId: user.authId!,
           email: user.email,
           fullName: user.fullName,
-          phoneNumber: user.phoneNumber,
+          username: null,
         );
       }
       return user;

@@ -13,8 +13,7 @@ final authRemoteDatasourceProvider = Provider<IAuthRemoteDataSource>((ref) {
   );
 });
 
-class AuthRemoteDatasource implements IAuthRemoteDataSource{
-
+class AuthRemoteDatasource implements IAuthRemoteDataSource {
   final ApiClient _apiClient;
   final UserSessionService _userSessionService;
 
@@ -42,36 +41,42 @@ class AuthRemoteDatasource implements IAuthRemoteDataSource{
 
     if (response.data['success'] == true) {
       final token = response.data['token'] as String?;
-      if (token != null) {
-        // Decode JWT token to get user ID
-        final decodedToken = JwtDecoder.decode(token);
-        final userId = decodedToken['id'] as String;
+      if (token == null || token.isEmpty) return null;
 
-        // Save token
-        await _userSessionService.saveToken(token);
+      // Decode JWT token
+      final decodedToken = JwtDecoder.decode(token);
 
-        // Try to get user data from local storage first
-        final storedFullName = _userSessionService.getCurrentUserFullName();
-        final storedPhoneNumber = _userSessionService.getCurrentUserPhoneNumber();
+      // NOTE: backend must include one of these keys
+      final userId = (decodedToken['id'] ?? decodedToken['_id'])?.toString();
+      if (userId == null) return null;
 
-        // Create user object with stored data
-        final user = AuthApiModel(
-          id: userId,
-          fullName: storedFullName ?? '', // Use stored data or empty string
-          email: email,
-          phoneNumber: storedPhoneNumber,
-          password: null,
-        );
+      // ✅ Username only from token (or empty)
+      final username = decodedToken['username']?.toString() ?? '';
 
-        // Update stored session with latest info
-        await _userSessionService.saveUserSession(
-          userId: userId,
-          email: email,
-          fullName: user.fullName,
-        );
+      // Full name from local storage (if you stored it during register)
+      final storedFullName = _userSessionService.getCurrentUserFullName();
 
-        return user;
-      }
+      // Save token
+      await _userSessionService.saveToken(token);
+
+      // Create user object
+      final user = AuthApiModel(
+        id: userId,
+        fullName: storedFullName ?? '',
+        username: username,
+        email: email,
+        password: null,
+      );
+
+      // Save session locally
+      await _userSessionService.saveUserSession(
+        userId: userId,
+        email: email,
+        fullName: user.fullName,
+        username: username, // keep this if your service supports it
+      );
+
+      return user;
     }
 
     return null;
@@ -83,6 +88,7 @@ class AuthRemoteDatasource implements IAuthRemoteDataSource{
       ApiEndpoints.customerRegister,
       data: user.toJson(),
     );
+
     if (response.data['success'] == true) {
       final data = response.data['data'] as Map<String, dynamic>;
       final registeredUser = AuthApiModel.fromJson(data);
@@ -92,7 +98,7 @@ class AuthRemoteDatasource implements IAuthRemoteDataSource{
         userId: registeredUser.id!,
         email: registeredUser.email,
         fullName: registeredUser.fullName,
-        phoneNumber: registeredUser.phoneNumber,
+        username: registeredUser.username,
       );
 
       return registeredUser;
@@ -100,6 +106,4 @@ class AuthRemoteDatasource implements IAuthRemoteDataSource{
       throw Exception(response.data['message'] ?? 'Registration failed');
     }
   }
-  
-  
 }
