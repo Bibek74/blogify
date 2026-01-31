@@ -27,9 +27,8 @@ class AuthViewModel extends Notifier<AuthState> {
   Future<void> register({
     required String fullName,
     required String email,
-    required String phoneNumber,
     required String password,
-    
+    required String username,
   }) async {
     state = state.copyWith(status: AuthStatus.loading);
 
@@ -37,8 +36,8 @@ class AuthViewModel extends Notifier<AuthState> {
       RegisterParams(
         fullName: fullName,
         email: email,
-        phoneNumber: phoneNumber,
         password: password,
+        username: username,
         
       ),
     );
