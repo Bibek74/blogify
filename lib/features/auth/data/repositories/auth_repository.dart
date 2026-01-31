@@ -128,7 +128,6 @@ class AuthRepository implements IAuthRepository{
         final authModel = AuthHiveModel(
           fullName: user.fullName,
           email: user.email,
-          phoneNumber: user.phoneNumber,
           password: user.password,
         );
         await _authDataSource.register(authModel);
