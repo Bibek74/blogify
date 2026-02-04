@@ -1,7 +1,7 @@
 import 'package:blogify/core/error/failures.dart';
 import 'package:blogify/core/services/connecitvity/network_info.dart';
 import 'package:blogify/features/auth/data/datasources/auth_datasource.dart';
-import 'package:blogify/features/auth/data/datasources/local/auth_local_datasource.dart' hide IAuthLocalDataSource;
+import 'package:blogify/features/auth/data/datasources/local/auth_local_datasource.dart';
 import 'package:blogify/features/auth/data/datasources/remote/auth_remote_datasource.dart';
 import 'package:blogify/features/auth/data/models/auth_api_model.dart';
 import 'package:blogify/features/auth/data/models/auth_hive_model.dart';
