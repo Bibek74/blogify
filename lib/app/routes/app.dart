@@ -10,7 +10,7 @@ class App extends StatelessWidget {
   Widget build(BuildContext context) {
     return ProviderScope(
       child: MaterialApp(
-        title: 'EverBlue',
+        title: 'blogify',
         home: const SplashScreen(),
         debugShowCheckedModeBanner: false,
       ),
