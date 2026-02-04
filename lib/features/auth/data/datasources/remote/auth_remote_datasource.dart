@@ -4,7 +4,6 @@ import 'package:blogify/core/services/storage/user_session_service.dart';
 import 'package:blogify/features/auth/data/datasources/auth_datasource.dart';
 import 'package:blogify/features/auth/data/models/auth_api_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:jwt_decoder/jwt_decoder.dart';
 
 final authRemoteDatasourceProvider = Provider<IAuthRemoteDataSource>((ref) {
   return AuthRemoteDatasource(
@@ -43,18 +42,15 @@ class AuthRemoteDatasource implements IAuthRemoteDataSource {
       final token = response.data['token'] as String?;
       if (token == null || token.isEmpty) return null;
 
-      // Decode JWT token
-      final decodedToken = JwtDecoder.decode(token);
+      // Get user data from response
+      final userData = response.data['data'] as Map<String, dynamic>?;
+      if (userData == null) return null;
 
-      // NOTE: backend must include one of these keys
-      final userId = (decodedToken['id'] ?? decodedToken['_id'])?.toString();
+      final userId = userData['_id']?.toString();
       if (userId == null) return null;
 
-      // ✅ Username only from token (or empty)
-      final username = decodedToken['username']?.toString() ?? '';
-
-      // Full name from local storage (if you stored it during register)
-      final storedFullName = _userSessionService.getCurrentUserFullName();
+      final fullName = userData['name']?.toString() ?? '';
+      final username = email.split('@').first;
 
       // Save token
       await _userSessionService.saveToken(token);
@@ -62,7 +58,7 @@ class AuthRemoteDatasource implements IAuthRemoteDataSource {
       // Create user object
       final user = AuthApiModel(
         id: userId,
-        fullName: storedFullName ?? '',
+        fullName: fullName,
         username: username,
         email: email,
         password: null,
@@ -72,8 +68,8 @@ class AuthRemoteDatasource implements IAuthRemoteDataSource {
       await _userSessionService.saveUserSession(
         userId: userId,
         email: email,
-        fullName: user.fullName,
-        username: username, // keep this if your service supports it
+        fullName: fullName,
+        username: username,
       );
 
       return user;
@@ -89,21 +85,24 @@ class AuthRemoteDatasource implements IAuthRemoteDataSource {
       data: user.toJson(),
     );
 
-    if (response.data['success'] == true) {
-      final data = response.data['data'] as Map<String, dynamic>;
-      final registeredUser = AuthApiModel.fromJson(data);
-
-      // Save user data locally for future login
-      await _userSessionService.saveUserSession(
-        userId: registeredUser.id!,
-        email: registeredUser.email,
-        fullName: registeredUser.fullName,
-        username: registeredUser.username,
-      );
-
-      return registeredUser;
-    } else {
-      throw Exception(response.data['message'] ?? 'Registration failed');
+    // Check if the response indicates success
+    final success = response.data['success'] ?? false;
+    
+    if (success == false) {
+      // Backend returned success: false - throw error immediately
+      final message = response.data['message'] ?? 'Registration failed';
+      throw Exception(message);
     }
+    
+    // User successfully registered
+    // Backend doesn't return user data, so we use the data we sent
+    await _userSessionService.saveUserSession(
+      userId: '', // Will be set during login
+      email: user.email,
+      fullName: user.fullName,
+      username: user.username ?? user.email.split('@').first,
+    );
+
+    return user;
   }
 }
