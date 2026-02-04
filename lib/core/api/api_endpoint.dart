@@ -7,7 +7,7 @@ class ApiEndpoints {
   // Configuration
   static const bool isPhysicalDevice = false;
   static const String _ipAddress = '192.168.1.78';
-  static const int _port = 3000;
+  static const int _port = 5000;
 
   // Base URLs
   static String get _host {
@@ -18,7 +18,7 @@ class ApiEndpoints {
   }
 
   static String get serverUrl => 'http://$_host:$_port';
-  static String get baseUrl => '$serverUrl/api/v1/customers';
+  static String get baseUrl => '$serverUrl/api';
   static String get mediaServerUrl => serverUrl;
 
   // Timeouts
@@ -26,8 +26,8 @@ class ApiEndpoints {
   static const Duration receiveTimeout = Duration(seconds: 30);
 
   static const String customers = '/customers';
-  static const String customerLogin = '/login';
-  static const String customerRegister = '/signup';
+  static const String customerLogin = '/auth/login';
+  static const String customerRegister = '/auth/signup';
 
   static String customerById(String id) => '$baseUrl/$id';
   static String uploadProfilePicture(String id) => '$baseUrl/$id/profile-picture';
