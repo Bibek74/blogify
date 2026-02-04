@@ -19,7 +19,6 @@ class FakeAuthViewModel extends AuthViewModel {
     required String fullName,
     required String email,
     required String password,
-    required String username,
   }) async {
     // no-op
   }
