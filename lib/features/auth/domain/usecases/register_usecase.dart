@@ -12,13 +12,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// ===========================
 class RegisterParams extends Equatable {
   final String fullName;
-  final String username;
+  final String? username;
   final String email;
   final String password;
 
   const RegisterParams({
     required this.fullName,
-    required this.username,
+    this.username,
     required this.email,
     required this.password,
   });
@@ -55,7 +55,7 @@ class RegisterUsecase
   Future<Either<Failure, bool>> call(RegisterParams params) {
     final entity = AuthEntity(
       fullName: params.fullName,
-      username: params.username,
+      username: params.username ?? params.email.split('@').first,
       email: params.email,
       password: params.password,
     );
