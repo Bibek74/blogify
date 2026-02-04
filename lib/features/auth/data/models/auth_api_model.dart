@@ -4,14 +4,14 @@ class AuthApiModel {
   final String? id;
   final String fullName;
   final String email;
-  final String username;
+  final String? username;
   final String? password;
 
   AuthApiModel({
     this.id,
     required this.fullName,
     required this.email,
-    required this.username,
+    this.username,
     this.password,
   });
 
@@ -20,7 +20,6 @@ class AuthApiModel {
     return {
       'name': fullName,
       'email': email,
-      'username': username,
       'password': password,
     };
   }
@@ -53,7 +52,7 @@ factory AuthApiModel.fromJson(Map<String, dynamic> json) {
       id: entity.authId,
       fullName: entity.fullName,
       email: entity.email,
-      username: entity.username,
+      username: entity.username ?? entity.email.split('@').first,
       password: entity.password,
     );
   }
