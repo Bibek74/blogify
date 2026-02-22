@@ -28,6 +28,10 @@ class ApiEndpoints {
   static const String customers = '/customers';
   static const String customerLogin = '/auth/login';
   static const String customerRegister = '/auth/signup';
+  static const String postsAll = '/post/all';
+  static const String profileMe = '/api/profile/me';
+  static const String profileUploadImage = '/api/profile/upload-image';
+  static String postLikeUnlike(String postId) => '/post/like-unlike/$postId';
 
   static String customerById(String id) => '$baseUrl/$id';
   static String uploadProfilePicture(String id) => '$baseUrl/$id/profile-picture';
