@@ -12,20 +12,18 @@ class ProfileRemoteDataSource {
   // ✅ NEW: fetch saved profile picture from backend (persistence)
   Future<String?> fetchProfilePictureUrl() async {
     final token = await _session.getToken();
-    final customerId = _session.getCurrentUserId();
 
     if (token == null || token.isEmpty) return null;
-    if (customerId == null || customerId.isEmpty) return null;
 
     final res = await _dio.get(
-      ApiEndpoints.customerById(customerId),
+      ApiEndpoints.profileMe,
       options: Options(
         headers: {'Authorization': 'Bearer $token'},
       ),
     );
 
-    // backend response: { success: true, data: customer }
-    final profilePath = (res.data['data']['profilePicture'] ?? '') as String;
+    // backend response: { success: true, result: { profileImage: ... } }
+    final profilePath = (res.data['result']?['profileImage'] ?? '') as String;
     if (profilePath.isEmpty) return null;
 
     // stored like "/public/item_photos/xxx.jpg"
@@ -36,21 +34,17 @@ class ProfileRemoteDataSource {
 
   Future<String> uploadProfilePicture(File file) async {
     final token = await _session.getToken();
-    final customerId = _session.getCurrentUserId();
 
     if (token == null || token.isEmpty) {
       throw Exception("Token missing. Please login again.");
     }
-    if (customerId == null || customerId.isEmpty) {
-      throw Exception("UserId missing. Please login again.");
-    }
 
     final formData = FormData.fromMap({
-      'photo': await MultipartFile.fromFile(file.path),
+      'profileImage': await MultipartFile.fromFile(file.path),
     });
 
-    final response = await _dio.post(
-      ApiEndpoints.uploadProfilePicture(customerId),
+    final response = await _dio.put(
+      ApiEndpoints.profileUploadImage,
       data: formData,
       options: Options(
         headers: {
@@ -59,6 +53,12 @@ class ProfileRemoteDataSource {
       ),
     );
 
-    return response.data['data']['profilePictureUrl'] as String;
+    final profilePath = (response.data['result']?['profileImage'] ?? '') as String;
+    if (profilePath.isEmpty) {
+      throw Exception('Profile image upload failed.');
+    }
+
+    if (profilePath.startsWith('http')) return profilePath;
+    return '${ApiEndpoints.serverUrl}$profilePath';
   }
 }
