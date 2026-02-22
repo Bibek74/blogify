@@ -50,7 +50,8 @@ class AuthRemoteDatasource implements IAuthRemoteDataSource {
       if (userId == null) return null;
 
       final fullName = userData['name']?.toString() ?? '';
-      final username = email.split('@').first;
+      final userEmail = userData['email']?.toString() ?? email;
+      final username = userEmail.split('@').first;
 
       // Save token
       await _userSessionService.saveToken(token);
@@ -67,7 +68,7 @@ class AuthRemoteDatasource implements IAuthRemoteDataSource {
       // Save session locally
       await _userSessionService.saveUserSession(
         userId: userId,
-        email: email,
+        email: userEmail,
         fullName: fullName,
         username: username,
       );
@@ -94,15 +95,8 @@ class AuthRemoteDatasource implements IAuthRemoteDataSource {
       throw Exception(message);
     }
     
-    // User successfully registered
-    // Backend doesn't return user data, so we use the data we sent
-    await _userSessionService.saveUserSession(
-      userId: '', // Will be set during login
-      email: user.email,
-      fullName: user.fullName,
-      username: user.username ?? user.email.split('@').first,
-    );
-
+    // User successfully registered.
+    // Do not create local session here; user must login first.
     return user;
   }
 }
