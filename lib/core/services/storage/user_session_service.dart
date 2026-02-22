@@ -32,7 +32,8 @@ class UserSessionService {
     required String userId,
     required String email,
     required String fullName,
-    String? phoneNumber, required username,
+    String? phoneNumber,
+    String? username,
   }) async {
     await _prefs.setBool(_keyIsLoggedIn, true);
     await _prefs.setString(_keyUserId, userId);
