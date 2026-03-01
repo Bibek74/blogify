@@ -66,6 +66,7 @@ dependencies:
   equatable: ^2.0.7
   dartz: ^0.10.1
   flutter_launcher_icons: ^0.14.4
+  local_auth: ^2.3.0
   shake_gesture: ^2.0.0
   shake: ^3.0.0
   
