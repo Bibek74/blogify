@@ -24,8 +24,18 @@ class UserSessionService {
   static const String _keyUserFullName = 'user_full_name';
   static const String _keyUserPhoneNumber = 'user_phone_number';
   static const String _keyToken = 'auth_token';
+  static const String _keyOnboardingSeen = 'onboarding_seen';
 
   UserSessionService({required SharedPreferences prefs}) : _prefs = prefs;
+
+  String _normalizeToken(String token) {
+    final trimmed = token.trim();
+    const bearerPrefix = 'Bearer ';
+    if (trimmed.toLowerCase().startsWith(bearerPrefix.toLowerCase())) {
+      return trimmed.substring(bearerPrefix.length).trim();
+    }
+    return trimmed;
+  }
 
   // Save user session after login
   Future<void> saveUserSession({
@@ -47,6 +57,14 @@ class UserSessionService {
   // Check if user is logged in
   bool isLoggedIn() {
     return _prefs.getBool(_keyIsLoggedIn) ?? false;
+  }
+
+  bool hasSeenOnboarding() {
+    return _prefs.getBool(_keyOnboardingSeen) ?? false;
+  }
+
+  Future<void> markOnboardingSeen() async {
+    await _prefs.setBool(_keyOnboardingSeen, true);
   }
 
   // Get current user ID
@@ -71,12 +89,14 @@ class UserSessionService {
 
   // Save token
   Future<void> saveToken(String token) async {
-    await _secureStorage.write(key: _keyToken, value: token);
+    await _secureStorage.write(key: _keyToken, value: _normalizeToken(token));
   }
 
   // Get token
   Future<String?> getToken() async {
-    return await _secureStorage.read(key: _keyToken);
+    final token = await _secureStorage.read(key: _keyToken);
+    if (token == null || token.trim().isEmpty) return null;
+    return _normalizeToken(token);
   }
 
 
