@@ -37,15 +37,12 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
     ref.listen<AuthState>(authViewModelProvider, (previous, next) {
       if (next.status == AuthStatus.registered) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Registration successful! Please login."),
-            backgroundColor: Colors.green,
+        if (previous?.status == AuthStatus.registered) return;
+        final navigator = Navigator.of(context);
+        navigator.pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => const LoginScreen(showRegistrationSuccessPopup: true),
           ),
-        );
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
         );
       }
 
