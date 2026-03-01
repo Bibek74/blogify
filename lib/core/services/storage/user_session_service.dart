@@ -25,6 +25,9 @@ class UserSessionService {
   static const String _keyUserPhoneNumber = 'user_phone_number';
   static const String _keyToken = 'auth_token';
   static const String _keyOnboardingSeen = 'onboarding_seen';
+  static const String _keyBiometricEnabled = 'biometric_enabled';
+  static const String _keyBiometricEmail = 'biometric_email';
+  static const String _keyBiometricPassword = 'biometric_password';
 
   UserSessionService({required SharedPreferences prefs}) : _prefs = prefs;
 
@@ -46,6 +49,7 @@ class UserSessionService {
     String? username,
   }) async {
     await _prefs.setBool(_keyIsLoggedIn, true);
+    await _prefs.setBool(_keyOnboardingSeen, true);
     await _prefs.setString(_keyUserId, userId);
     await _prefs.setString(_keyUserEmail, email);
     await _prefs.setString(_keyUserFullName, fullName);
@@ -64,6 +68,58 @@ class UserSessionService {
   }
 
   Future<void> markOnboardingSeen() async {
+    await _prefs.setBool(_keyOnboardingSeen, true);
+  }
+
+  bool isBiometricEnabled() {
+    return _prefs.getBool(_keyBiometricEnabled) ?? false;
+  }
+
+  Future<void> setBiometricEnabled(bool enabled) async {
+    await _prefs.setBool(_keyBiometricEnabled, enabled);
+  }
+
+  Future<void> saveBiometricCredentials({
+    required String email,
+    required String password,
+  }) async {
+    await _secureStorage.write(key: _keyBiometricEmail, value: email.trim());
+    await _secureStorage.write(key: _keyBiometricPassword, value: password);
+  }
+
+  Future<({String email, String password})?> getBiometricCredentials() async {
+    final email = await _secureStorage.read(key: _keyBiometricEmail);
+    final password = await _secureStorage.read(key: _keyBiometricPassword);
+
+    if (email == null || email.trim().isEmpty) return null;
+    if (password == null || password.isEmpty) return null;
+
+    return (email: email.trim(), password: password);
+  }
+
+  Future<void> clearBiometricCredentials() async {
+    await _secureStorage.delete(key: _keyBiometricEmail);
+    await _secureStorage.delete(key: _keyBiometricPassword);
+  }
+
+  Future<bool> hasBiometricQuickLoginData() async {
+    final token = await getToken();
+    final userId = getCurrentUserId();
+    final email = getCurrentUserEmail();
+    final fullName = getCurrentUserFullName();
+
+    return token != null &&
+        token.isNotEmpty &&
+        userId != null &&
+        userId.isNotEmpty &&
+        email != null &&
+        email.isNotEmpty &&
+        fullName != null &&
+        fullName.isNotEmpty;
+  }
+
+  Future<void> restoreSessionFromBiometric() async {
+    await _prefs.setBool(_keyIsLoggedIn, true);
     await _prefs.setBool(_keyOnboardingSeen, true);
   }
 
@@ -99,9 +155,13 @@ class UserSessionService {
     return _normalizeToken(token);
   }
 
-
   // Clear user session (logout)
-  Future<void> clearSession() async {
+  Future<void> clearSession({bool preserveForBiometric = false}) async {
+    if (preserveForBiometric && isBiometricEnabled()) {
+      await _prefs.setBool(_keyIsLoggedIn, false);
+      return;
+    }
+
     await _prefs.remove(_keyIsLoggedIn);
     await _prefs.remove(_keyUserId);
     await _prefs.remove(_keyUserEmail);
