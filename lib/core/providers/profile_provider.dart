@@ -56,13 +56,22 @@ class ProfileController extends StateNotifier<ProfileState> {
   final UserSessionService _session;
   final ImagePicker _picker = ImagePicker();
 
+  String _withCacheBuster(String url) {
+    final parsed = Uri.tryParse(url);
+    if (parsed == null) return url;
+
+    final params = Map<String, String>.from(parsed.queryParameters);
+    params['v'] = DateTime.now().millisecondsSinceEpoch.toString();
+    return parsed.replace(queryParameters: params).toString();
+  }
+
   // ✅ NEW: load profile picture from backend (persistence)
   Future<void> loadProfile() async {
     try {
       final remote = ProfileRemoteDataSource(_dio, _session);
       final url = await remote.fetchProfilePictureUrl();
       if (url != null && url.isNotEmpty) {
-        state = state.copyWith(imageUrl: url);
+        state = state.copyWith(imageUrl: _withCacheBuster(url));
       }
     } catch (_) {
       // ignore
@@ -102,12 +111,17 @@ class ProfileController extends StateNotifier<ProfileState> {
 
       state = state.copyWith(
         loading: false,
-        imageUrl: url,
+        imageUrl: _withCacheBuster(url),
       );
     } catch (e) {
+      var message = e.toString();
+      if (message.startsWith('Exception: ')) {
+        message = message.replaceFirst('Exception: ', '');
+      }
+
       state = state.copyWith(
         loading: false,
-        error: e.toString(),
+        error: message,
       );
     }
   }
