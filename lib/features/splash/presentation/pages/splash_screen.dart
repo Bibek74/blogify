@@ -1,8 +1,10 @@
 import 'package:blogify/core/services/storage/user_session_service.dart';
+import 'package:blogify/features/auth/presentation/pages/login_screen.dart';
+import 'package:blogify/features/dashboard/presentation/pages/button_navigation.dart';
 import 'package:blogify/features/onboarding/presentation/pages/onboarding_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+import 'package:local_auth/local_auth.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -12,16 +14,81 @@ class SplashScreen extends ConsumerStatefulWidget {
 }
 
 class _SplashScreenState extends ConsumerState<SplashScreen> {
- @override
+  final LocalAuthentication _localAuth = LocalAuthentication();
+
+  @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(seconds: 3), () {
+    Future.delayed(const Duration(seconds: 3), () async {
       if (!mounted) return;
+
+      final session = ref.read(userSessionServiceProvider);
+      final hasSeenOnboarding = session.hasSeenOnboarding();
+      final isBiometricEnabled = session.isBiometricEnabled();
+
+      if (!hasSeenOnboarding) {
+        if (isBiometricEnabled) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const LoginScreen()),
+          );
+          return;
+        }
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+        );
+        return;
+      }
+
+      if (!session.isLoggedIn()) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+        return;
+      }
+
+      if (session.isBiometricEnabled()) {
+        final authenticated = await _authenticateWithBiometrics();
+        if (!mounted) return;
+
+        if (!authenticated) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const LoginScreen()),
+          );
+          return;
+        }
+      }
+
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+        MaterialPageRoute(builder: (_) => const BottomNavScreen()),
       );
     });
+  }
+
+  Future<bool> _authenticateWithBiometrics() async {
+    try {
+      final canCheck = await _localAuth.canCheckBiometrics;
+      final supported = await _localAuth.isDeviceSupported();
+
+      if (!canCheck || !supported) {
+        return true;
+      }
+
+      return await _localAuth.authenticate(
+        localizedReason: 'Authenticate to continue to Blogify',
+        options: const AuthenticationOptions(
+          biometricOnly: true,
+          stickyAuth: true,
+        ),
+      );
+    } catch (_) {
+      return false;
+    }
   }
 
   @override
