@@ -43,7 +43,8 @@ class _FavouriteScreenState extends ConsumerState<FavouriteScreen> {
     final success = data['success'] == true;
 
     if (!success) {
-      final message = data['message']?.toString() ?? 'Failed to fetch favourites';
+      final message =
+          data['message']?.toString() ?? 'Failed to fetch favourites';
       throw Exception(message);
     }
 
@@ -71,9 +72,9 @@ class _FavouriteScreenState extends ConsumerState<FavouriteScreen> {
 
       if (token == null || token.isEmpty) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Please login again.')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Please login again.')));
         }
         return;
       }
@@ -91,9 +92,9 @@ class _FavouriteScreenState extends ConsumerState<FavouriteScreen> {
       await _reloadFavourites();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
       }
     }
   }
@@ -110,13 +111,23 @@ class _FavouriteScreenState extends ConsumerState<FavouriteScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currentUserId = ref.read(userSessionServiceProvider).getCurrentUserId();
+    final theme = Theme.of(context);
+
+    final currentUserId = ref
+        .read(userSessionServiceProvider)
+        .getCurrentUserId();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F5),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Favourite'),
-        backgroundColor: Colors.white,
+        title: Text(
+          'Saved Blogs',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        backgroundColor: theme.scaffoldBackgroundColor,
+        elevation: 0,
       ),
       body: RefreshIndicator(
         onRefresh: _reloadFavourites,
@@ -130,18 +141,31 @@ class _FavouriteScreenState extends ConsumerState<FavouriteScreen> {
             if (snapshot.hasError) {
               return ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
                 children: [
-                  SizedBox(
-                    height: MediaQuery.of(context).size.height * 0.6,
-                    child: Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Text(
-                          snapshot.error.toString(),
-                          style: const TextStyle(color: Colors.redAccent),
-                          textAlign: TextAlign.center,
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.errorContainer,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.error_outline_rounded,
+                          color: theme.colorScheme.onErrorContainer,
                         ),
-                      ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            snapshot.error.toString(),
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onErrorContainer,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -153,42 +177,105 @@ class _FavouriteScreenState extends ConsumerState<FavouriteScreen> {
             if (posts.isEmpty) {
               return ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                children: const [
-                  SizedBox(
-                    height: 300,
-                    child: Center(child: Text('No favourite posts found')),
+                padding: const EdgeInsets.all(16),
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.favorite_border_rounded,
+                          size: 36,
+                          color: theme.colorScheme.primary,
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'No favourite posts found',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Like posts from Home to see them here.',
+                          style: theme.textTheme.bodyMedium,
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               );
             }
 
-            return ListView.separated(
+            return ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(16),
-              itemCount: posts.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 16),
-              itemBuilder: (context, index) {
-                final post = posts[index];
-                return PostCard(
-                  title: post.title,
-                  excerpt: post.content,
-                  author: post.authorName,
-                  authorImageUrl: post.authorImageUrl,
-                  authorRole: post.authorRole,
-                  date: _formatDate(post.date),
-                  likes: post.likesCount,
-                  isLiked: post.isLikedBy(currentUserId),
-                  onReadMore: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => PostDetailScreen(post: post),
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        theme.colorScheme.primaryContainer,
+                        theme.colorScheme.tertiaryContainer,
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.favorite_rounded,
+                        color: theme.colorScheme.onPrimaryContainer,
                       ),
-                    );
-                  },
-                  onFavouriteTap: () => _toggleLike(post),
-                );
-              },
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          '${posts.length} favourites saved',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: theme.colorScheme.onPrimaryContainer,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ...posts.map((post) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: PostCard(
+                      title: post.title,
+                      excerpt: post.content,
+                      imageUrl: post.imageUrl,
+                      author: post.authorName,
+                      authorImageUrl: post.authorImageUrl,
+                      authorRole: post.authorRole,
+                      date: _formatDate(post.date),
+                      likes: post.likesCount,
+                      isLiked: post.isLikedBy(currentUserId),
+                      onReadMore: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PostDetailScreen(post: post),
+                          ),
+                        );
+                      },
+                      onFavouriteTap: () => _toggleLike(post),
+                    ),
+                  );
+                }),
+              ],
             );
           },
         ),
