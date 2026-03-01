@@ -1,8 +1,11 @@
 import 'package:blogify/features/auth/presentation/state/auth_state.dart';
 import 'package:blogify/features/auth/presentation/view_model/auth_view_model.dart';
+import 'package:blogify/core/services/storage/user_session_service.dart';
 import 'package:blogify/features/dashboard/presentation/pages/button_navigation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:local_auth/local_auth.dart';
 import 'signup_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -16,6 +19,14 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool showPassword = false;
+  bool _showBiometricLogin = false;
+  bool _showBiometricSetupHint = false;
+  bool _isBiometricLoading = false;
+
+  String? _pendingEmail;
+  String? _pendingPassword;
+
+  final LocalAuthentication _localAuth = LocalAuthentication();
 
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
@@ -24,6 +35,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void initState() {
     super.initState();
+    Future.microtask(_loadBiometricLoginAvailability);
+
     if (widget.showRegistrationSuccessPopup) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -62,6 +75,125 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  Future<void> _loadBiometricLoginAvailability() async {
+    final session = ref.read(userSessionServiceProvider);
+
+    if (!session.isBiometricEnabled()) {
+      if (!mounted) return;
+      setState(() {
+        _showBiometricLogin = false;
+        _showBiometricSetupHint = false;
+      });
+      return;
+    }
+
+    final credentials = await session.getBiometricCredentials();
+    final hasQuickLoginData = await session.hasBiometricQuickLoginData();
+    final canCheck = await _localAuth.canCheckBiometrics;
+    final isSupported = await _localAuth.isDeviceSupported();
+
+    if (!mounted) return;
+    setState(() {
+      _showBiometricLogin =
+          (credentials != null || hasQuickLoginData) && canCheck && isSupported;
+      _showBiometricSetupHint =
+          credentials == null && !hasQuickLoginData && canCheck && isSupported;
+    });
+  }
+
+  Future<void> _loginWithBiometric() async {
+    if (_isBiometricLoading) return;
+
+    final session = ref.read(userSessionServiceProvider);
+    final credentials = await session.getBiometricCredentials();
+    final hasQuickLoginData = await session.hasBiometricQuickLoginData();
+
+    if (credentials == null && !hasQuickLoginData) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No biometric login data found.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isBiometricLoading = true;
+    });
+
+    try {
+      final authenticated = await _localAuth.authenticate(
+        localizedReason: 'Authenticate to login with fingerprint',
+        options: const AuthenticationOptions(
+          biometricOnly: true,
+          stickyAuth: true,
+        ),
+      );
+
+      if (!authenticated) return;
+
+      if (credentials == null && hasQuickLoginData) {
+        await session.restoreSessionFromBiometric();
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const BottomNavScreen()),
+        );
+        return;
+      }
+
+      if (credentials == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No biometric login data found.')),
+        );
+        return;
+      }
+
+      _emailController.text = credentials.email;
+      _passwordController.text = credentials.password;
+      _pendingEmail = credentials.email;
+      _pendingPassword = credentials.password;
+
+      await ref
+          .read(authViewModelProvider.notifier)
+          .login(email: credentials.email, password: credentials.password);
+    } on PlatformException catch (error) {
+      if (!mounted) return;
+
+      String message;
+      switch (error.code) {
+        case 'NotAvailable':
+        case 'PasscodeNotSet':
+          message = 'Biometric is not available on this device.';
+          break;
+        case 'NotEnrolled':
+          message =
+              'No biometric enrolled. Add fingerprint/face in device settings.';
+          break;
+        case 'LockedOut':
+        case 'PermanentlyLockedOut':
+          message = 'Biometric is locked. Unlock device and try again.';
+          break;
+        default:
+          message = 'Biometric authentication failed. Please try again.';
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Biometric authentication failed.')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isBiometricLoading = false;
+        });
+      }
+    }
+  }
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -74,11 +206,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final authState = ref.watch(authViewModelProvider);
 
     // --- KEEPING YOUR LOGIC ---
-    ref.listen<AuthState>(authViewModelProvider, (previous, next) async {
+    ref.listen<AuthState>(authViewModelProvider, (previous, next) {
       if (next.status == AuthStatus.authenticated) {
         if (previous?.status == AuthStatus.authenticated) return;
-        final navigator = Navigator.of(context);
+
+        final session = ref.read(userSessionServiceProvider);
+        final pendingEmail = _pendingEmail;
+        final pendingPassword = _pendingPassword;
+
+        if (session.isBiometricEnabled() &&
+            pendingEmail != null &&
+            pendingEmail.isNotEmpty &&
+            pendingPassword != null &&
+            pendingPassword.isNotEmpty) {
+          session.saveBiometricCredentials(
+            email: pendingEmail,
+            password: pendingPassword,
+          );
+        }
+
         if (!mounted) return;
+        final navigator = Navigator.of(context);
         navigator.pushReplacement(
           MaterialPageRoute(
             builder: (_) => const BottomNavScreen(showLoginSuccessPopup: true),
@@ -245,6 +393,51 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                               _loginButton(authState),
 
+                              if (_showBiometricLogin) ...[
+                                const SizedBox(height: 10),
+                                TextButton.icon(
+                                  onPressed: _isBiometricLoading
+                                      ? null
+                                      : _loginWithBiometric,
+                                  icon: _isBiometricLoading
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Icon(Icons.fingerprint),
+                                  label: const Text(
+                                    'Tap to login with fingerprint',
+                                  ),
+                                ),
+                              ],
+
+                              if (_showBiometricSetupHint) ...[
+                                const SizedBox(height: 10),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF7F7F7),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Row(
+                                    children: [
+                                      Icon(Icons.fingerprint, size: 18),
+                                      SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Biometric is enabled. Login once with email/password to setup fingerprint login.',
+                                          style: TextStyle(fontSize: 12.5),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+
                               const SizedBox(height: 14),
 
                               Row(
@@ -379,6 +572,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ? null
             : () async {
                 if (_formKey.currentState!.validate()) {
+                  _pendingEmail = _emailController.text.trim();
+                  _pendingPassword = _passwordController.text;
+
                   await ref
                       .read(authViewModelProvider.notifier)
                       .login(
