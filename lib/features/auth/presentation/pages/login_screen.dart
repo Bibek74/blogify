@@ -6,7 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'signup_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
-  const LoginScreen({super.key});
+  final bool showRegistrationSuccessPopup;
+
+  const LoginScreen({super.key, this.showRegistrationSuccessPopup = false});
 
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
@@ -20,6 +22,47 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _passwordController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.showRegistrationSuccessPopup) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        BuildContext? successDialogContext;
+        showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) {
+            successDialogContext = dialogContext;
+            return const AlertDialog(
+              title: Text('Success'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green, size: 48),
+                  SizedBox(height: 12),
+                  Text('Registration successful! Please login.'),
+                ],
+              ),
+            );
+          },
+        ).then((_) {
+          successDialogContext = null;
+        });
+
+        Future.delayed(const Duration(seconds: 2), () {
+          if (!mounted) return;
+          final dialogContext = successDialogContext;
+          if (dialogContext != null &&
+              dialogContext.mounted &&
+              Navigator.canPop(dialogContext)) {
+            Navigator.of(dialogContext).pop();
+          }
+        });
+      });
+    }
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
@@ -31,17 +74,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final authState = ref.watch(authViewModelProvider);
 
     // --- KEEPING YOUR LOGIC ---
-    ref.listen<AuthState>(authViewModelProvider, (previous, next) {
+    ref.listen<AuthState>(authViewModelProvider, (previous, next) async {
       if (next.status == AuthStatus.authenticated) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Login successful!'),
-            backgroundColor: Colors.green,
+        if (previous?.status == AuthStatus.authenticated) return;
+        final navigator = Navigator.of(context);
+        if (!mounted) return;
+        navigator.pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => const BottomNavScreen(showLoginSuccessPopup: true),
           ),
-        );
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const BottomNavScreen()),
         );
       } else if (next.status == AuthStatus.error) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -68,7 +109,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 22,
+                  vertical: 18,
+                ),
                 child: Column(
                   children: [
                     const SizedBox(height: 18),
@@ -102,14 +146,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         borderRadius: BorderRadius.circular(18),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.08),
+                            color: Colors.black.withValues(alpha: 0.08),
                             blurRadius: 20,
                             offset: const Offset(0, 10),
                           ),
                         ],
                       ),
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 18,
+                        ),
                         child: Form(
                           key: _formKey,
                           child: Column(
@@ -147,8 +194,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   if (v == null || v.trim().isEmpty) {
                                     return "Email is required";
                                   }
-                                  if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                                      .hasMatch(v.trim())) {
+                                  if (!RegExp(
+                                    r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                                  ).hasMatch(v.trim())) {
                                     return "Enter a valid email";
                                   }
                                   return null;
@@ -164,7 +212,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 icon: Icons.lock_outline,
                                 isPassword: true,
                                 obscure: !showPassword,
-                                onToggle: () => setState(() => showPassword = !showPassword),
+                                onToggle: () => setState(
+                                  () => showPassword = !showPassword,
+                                ),
                                 validator: (v) {
                                   if (v == null || v.isEmpty) {
                                     return "Password is required";
@@ -208,7 +258,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     onTap: () {
                                       Navigator.push(
                                         context,
-                                        MaterialPageRoute(builder: (_) => const SignupScreen()),
+                                        MaterialPageRoute(
+                                          builder: (_) => const SignupScreen(),
+                                        ),
                                       );
                                     },
                                     child: const Text(
@@ -278,7 +330,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ? IconButton(
                 onPressed: onToggle,
                 icon: Icon(
-                  obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                  obscure
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
                   color: Colors.black45,
                   size: 20,
                 ),
@@ -317,13 +371,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           backgroundColor: const Color(0xFFF5B63A),
           foregroundColor: Colors.black,
           elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30),
+          ),
         ),
         onPressed: isLoading
             ? null
             : () async {
                 if (_formKey.currentState!.validate()) {
-                  await ref.read(authViewModelProvider.notifier).login(
+                  await ref
+                      .read(authViewModelProvider.notifier)
+                      .login(
                         email: _emailController.text.trim(),
                         password: _passwordController.text,
                       );
