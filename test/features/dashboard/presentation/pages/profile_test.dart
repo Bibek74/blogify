@@ -16,9 +16,8 @@ class MockUserSessionService extends Mock implements UserSessionService {}
 
 class MockHiveService extends Mock implements HiveService {}
 
-
 class TestProfileController extends ProfileController {
-  TestProfileController(Dio dio, UserSessionService session) : super(dio, session);
+  TestProfileController(super.dio, super.session);
 
   bool loadProfileCalled = false;
   bool clearCalled = false;
@@ -50,7 +49,9 @@ void main() {
       final mockHiveService = MockHiveService();
 
       when(() => mockSession.getCurrentUserFullName()).thenReturn('Bibek Shah');
-      when(() => mockSession.getCurrentUserEmail()).thenReturn('bbekshah789@gmail.com');
+      when(
+        () => mockSession.getCurrentUserEmail(),
+      ).thenReturn('bbekshah789@gmail.com');
 
       when(() => mockSession.clearSession()).thenAnswer((_) async {});
 
