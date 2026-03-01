@@ -3,13 +3,14 @@ import 'package:blogify/core/services/storage/user_session_service.dart';
 import 'package:blogify/app/theme/theme_mode_provider.dart';
 import 'package:blogify/core/api/api_endpoint.dart';
 import 'package:blogify/core/widgets/smart_network_avatar.dart';
-import 'package:blogify/features/auth/presentation/pages/signup_screen.dart';
+import 'package:blogify/features/auth/presentation/pages/login_screen.dart';
 import 'package:blogify/features/dashboard/presentation/pages/edit_profile_screen.dart';
 import 'package:blogify/features/dashboard/presentation/pages/my_blogs_screen.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:local_auth/local_auth.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -20,6 +21,7 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   int _myBlogCount = 0;
+  final LocalAuthentication _localAuth = LocalAuthentication();
 
   @override
   void initState() {
@@ -72,6 +74,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final session = ref.read(userSessionServiceProvider);
     final themeMode = ref.watch(themeModeProvider);
     final isDarkMode = themeMode == ThemeMode.dark;
+    final isBiometricEnabled = session.isBiometricEnabled();
     final theme = Theme.of(context);
 
     final state = ref.watch(profileProvider);
@@ -259,6 +262,83 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 },
               ),
             ),
+            Card(
+              elevation: 0,
+              margin: const EdgeInsets.only(bottom: 10),
+              color: theme.colorScheme.surface,
+              shape: RoundedRectangleBorder(
+                side: BorderSide(
+                  color: theme.colorScheme.outline.withValues(alpha: 0.3),
+                ),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: SwitchListTile(
+                secondary: Icon(
+                  isBiometricEnabled
+                      ? Icons.fingerprint
+                      : Icons.fingerprint_outlined,
+                ),
+                title: const Text('Biometric'),
+                subtitle: const Text(
+                  'Enable fingerprint login. For existing sessions, it works after logout.',
+                ),
+                value: isBiometricEnabled,
+                onChanged: (value) async {
+                  final messenger = ScaffoldMessenger.of(context);
+
+                  if (value) {
+                    final canCheck = await _localAuth.canCheckBiometrics;
+                    final supported = await _localAuth.isDeviceSupported();
+
+                    if (!canCheck || !supported) {
+                      if (!mounted) return;
+                      messenger.showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Biometric not available on this device.',
+                          ),
+                        ),
+                      );
+                      await session.setBiometricEnabled(false);
+                      setState(() {});
+                      return;
+                    }
+
+                    final available = await _localAuth.getAvailableBiometrics();
+                    if (available.isEmpty) {
+                      if (!mounted) return;
+                      messenger.showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'No biometric enrolled. Add fingerprint/face in device settings first.',
+                          ),
+                        ),
+                      );
+                      await session.setBiometricEnabled(false);
+                      setState(() {});
+                      return;
+                    }
+
+                    await session.setBiometricEnabled(true);
+
+                    if (!mounted) return;
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Biometric enabled. Login once with password to finish setup.',
+                        ),
+                      ),
+                    );
+                  } else {
+                    await session.setBiometricEnabled(false);
+                    await session.clearBiometricCredentials();
+                  }
+
+                  if (!mounted) return;
+                  setState(() {});
+                },
+              ),
+            ),
             if (state.loading) ...[
               const SizedBox(height: 4),
               const LinearProgressIndicator(),
@@ -297,10 +377,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
                 if (shouldLogout != true) return;
 
-                await session.clearSession();
+                await session.clearSession(preserveForBiometric: true);
                 ref.read(profileProvider.notifier).clear();
                 navigator.pushReplacement(
-                  MaterialPageRoute(builder: (_) => const SignupScreen()),
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
                 );
               },
               icon: const Icon(Icons.logout),
