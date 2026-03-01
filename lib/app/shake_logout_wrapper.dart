@@ -58,7 +58,7 @@ class _ShakeLogoutWrapperState extends ConsumerState<ShakeLogoutWrapper> {
       );
 
       if (shouldLogout == true) {
-        await session.clearSession();
+        await session.clearSession(preserveForBiometric: true);
         ref.read(profileProvider.notifier).clear();
 
         final navigatorState = appNavigatorKey.currentState;
