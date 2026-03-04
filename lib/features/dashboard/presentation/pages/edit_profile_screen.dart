@@ -1,5 +1,6 @@
 import 'package:blogify/core/api/api_endpoint.dart';
 import 'package:blogify/core/services/storage/user_session_service.dart';
+import 'package:blogify/features/auth/presentation/pages/login_screen.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,6 +18,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   final _emailController = TextEditingController();
 
   bool _isSaving = false;
+  bool _isDeleting = false;
 
   @override
   void initState() {
@@ -156,6 +158,135 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     throw Exception('Profile update endpoint not found.');
   }
 
+  Future<void> _confirmAndDeleteAccount() async {
+    if (_isDeleting) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete account'),
+        content: const Text(
+          'Are you sure you want to delete your account? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() {
+      _isDeleting = true;
+    });
+
+    try {
+      final session = ref.read(userSessionServiceProvider);
+      final token = await session.getToken();
+      final userId = session.getCurrentUserId();
+
+      if (token == null || token.isEmpty) {
+        throw Exception('Session expired. Please login again.');
+      }
+
+      final dio = Dio(
+        BaseOptions(
+          baseUrl: ApiEndpoints.serverUrl,
+          connectTimeout: ApiEndpoints.connectionTimeout,
+          receiveTimeout: ApiEndpoints.receiveTimeout,
+          headers: {
+            'Authorization': 'Bearer $token',
+            'x-auth-token': token,
+          },
+        ),
+      );
+
+      final response = await _deleteAccountWithFallback(dio, userId: userId);
+      final data = response.data;
+      final success = data is Map<String, dynamic>
+          ? data['success'] != false
+          : true;
+
+      if (!success) {
+        final message = data is Map<String, dynamic>
+            ? data['message']?.toString() ?? 'Failed to delete account.'
+            : 'Failed to delete account.';
+        throw Exception(message);
+      }
+
+      await session.clearSession();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Account deleted successfully.')),
+      );
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (_) => false,
+      );
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      final message = data is Map<String, dynamic>
+          ? data['message']?.toString() ?? 'Failed to delete account.'
+          : 'Failed to delete account.';
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDeleting = false;
+        });
+      }
+    }
+  }
+
+  Future<Response<dynamic>> _deleteAccountWithFallback(
+    Dio dio, {
+    required String? userId,
+  }) async {
+    final endpoints = [
+      '/api/profile/delete-account',
+      '/api/profile/delete-profile',
+      '/api/profile/me',
+      if (userId != null && userId.isNotEmpty) '/customers/$userId',
+      if (userId != null && userId.isNotEmpty) '/api/customers/$userId',
+    ];
+
+    DioException? lastError;
+
+    for (final endpoint in endpoints) {
+      try {
+        return await dio.delete(endpoint);
+      } on DioException catch (e) {
+        lastError = e;
+        final status = e.response?.statusCode;
+        if (status != 404 && status != 405) {
+          rethrow;
+        }
+      }
+    }
+
+    if (lastError != null) throw lastError;
+    throw Exception('Delete account endpoint not found.');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -200,6 +331,30 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                           )
                         : const Text('Save changes'),
                   ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: (_isSaving || _isDeleting)
+                      ? null
+                      : _confirmAndDeleteAccount,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Theme.of(context).colorScheme.error,
+                    side: BorderSide(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  icon: _isDeleting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.delete_outline),
+                  label: const Text('Delete account'),
                 ),
               ),
             ],
