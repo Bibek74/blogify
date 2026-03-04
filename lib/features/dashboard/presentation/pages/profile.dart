@@ -76,6 +76,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final isDarkMode = themeMode == ThemeMode.dark;
     final isBiometricEnabled = session.isBiometricEnabled();
     final theme = Theme.of(context);
+    const double horizontalPadding = 20;
+    const double cardRadius = 18;
 
     final state = ref.watch(profileProvider);
     final controller = ref.read(profileProvider.notifier);
@@ -89,157 +91,180 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         title: Text(
           'Profile',
           style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.2,
           ),
         ),
         backgroundColor: theme.scaffoldBackgroundColor,
         elevation: 0,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(
+          horizontalPadding,
+          16,
+          horizontalPadding,
+          24,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    theme.colorScheme.primaryContainer,
-                    theme.colorScheme.tertiaryContainer,
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+            ProfileEntryTransition(
+              order: 0,
+              child: Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      theme.colorScheme.primaryContainer,
+                      theme.colorScheme.tertiaryContainer,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(cardRadius),
                 ),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Column(
-                children: [
-                  Stack(
-                    alignment: Alignment.bottomRight,
-                    children: [
-                      SmartNetworkAvatar(
-                        radius: 55,
-                        backgroundColor: theme.colorScheme.surface,
-                        imageUrls: ApiEndpoints.resolveMediaUrlCandidates(
-                          state.imageUrl,
-                        ),
-                        fallback: Icon(
-                          Icons.person,
-                          size: 55,
-                          color: theme.colorScheme.onSurface.withValues(
-                            alpha: 0.7,
+                child: Column(
+                  children: [
+                    Stack(
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        SmartNetworkAvatar(
+                          radius: 55,
+                          backgroundColor: theme.colorScheme.surface,
+                          imageUrls: ApiEndpoints.resolveMediaUrlCandidates(
+                            state.imageUrl,
                           ),
-                        ),
-                      ),
-                      Material(
-                        color: theme.colorScheme.primary,
-                        shape: const CircleBorder(),
-                        child: InkWell(
-                          customBorder: const CircleBorder(),
-                          onTap: state.loading
-                              ? null
-                              : () => _showPicker(context, controller),
-                          child: const Padding(
-                            padding: EdgeInsets.all(8),
-                            child: Icon(
-                              Icons.camera_alt,
-                              size: 18,
-                              color: Colors.white,
+                          fallback: Icon(
+                            Icons.person,
+                            size: 55,
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.7,
                             ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    name,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: theme.colorScheme.onPrimaryContainer,
+                        Material(
+                          color: theme.colorScheme.primary,
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: state.loading
+                                ? null
+                                : () => _showPicker(context, controller),
+                            child: const Padding(
+                              padding: EdgeInsets.all(8),
+                              child: Icon(
+                                Icons.camera_alt,
+                                size: 18,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    email,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onPrimaryContainer,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface.withValues(alpha: 0.45),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      '$_myBlogCount blogs published',
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
+                    const SizedBox(height: 14),
+                    Text(
+                      name,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
                         color: theme.colorScheme.onPrimaryContainer,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 4),
+                    Text(
+                      email,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onPrimaryContainer,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface.withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '$_myBlogCount blogs published',
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 14),
-            _profileActionCard(
-              context,
-              icon: Icons.article_outlined,
-              title: 'My blogs',
-              subtitle: '$_myBlogCount blogs',
-              onTap: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const MyBlogsScreen()),
-                );
-                await _loadMyBlogCount();
-              },
+            ProfileEntryTransition(
+              order: 1,
+              child: _profileActionCard(
+                context,
+                icon: Icons.article_outlined,
+                title: 'My blogs',
+                subtitle: '$_myBlogCount blogs',
+                onTap: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const MyBlogsScreen()),
+                  );
+                  await _loadMyBlogCount();
+                },
+              ),
             ),
-            _profileActionCard(
-              context,
-              icon: Icons.edit_outlined,
-              title: 'Edit profile',
-              onTap: () async {
-                final updated = await Navigator.push<bool>(
-                  context,
-                  MaterialPageRoute(builder: (_) => const EditProfileScreen()),
-                );
+            ProfileEntryTransition(
+              order: 2,
+              child: _profileActionCard(
+                context,
+                icon: Icons.edit_outlined,
+                title: 'Edit profile',
+                onTap: () async {
+                  final updated = await Navigator.push<bool>(
+                    context,
+                    MaterialPageRoute(builder: (_) => const EditProfileScreen()),
+                  );
 
-                if (updated == true && mounted) {
-                  setState(() {});
-                }
-              },
+                  if (updated == true && mounted) {
+                    setState(() {});
+                  }
+                },
+              ),
             ),
-            _profileActionCard(
-              context,
-              icon: Icons.notifications_outlined,
-              title: 'Notification settings',
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Notification settings coming soon'),
-                  ),
-                );
-              },
+            ProfileEntryTransition(
+              order: 3,
+              child: _profileActionCard(
+                context,
+                icon: Icons.notifications_outlined,
+                title: 'Notification settings',
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Notification settings coming soon'),
+                    ),
+                  );
+                },
+              ),
             ),
-            _profileActionCard(
-              context,
-              icon: Icons.lock_outline,
-              title: 'Privacy',
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Privacy settings coming soon')),
-                );
-              },
+            ProfileEntryTransition(
+              order: 4,
+              child: _profileActionCard(
+                context,
+                icon: Icons.lock_outline,
+                title: 'Privacy',
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Privacy settings coming soon')),
+                  );
+                },
+              ),
             ),
-            Card(
+            ProfileEntryTransition(
+              order: 5,
+              child: Card(
               elevation: 0,
               margin: const EdgeInsets.only(bottom: 10),
               color: theme.colorScheme.surface,
@@ -247,7 +272,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 side: BorderSide(
                   color: theme.colorScheme.outline.withValues(alpha: 0.3),
                 ),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(16),
               ),
               child: SwitchListTile(
                 secondary: Icon(
@@ -262,7 +287,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 },
               ),
             ),
-            Card(
+            ),
+            ProfileEntryTransition(
+              order: 6,
+              child: Card(
               elevation: 0,
               margin: const EdgeInsets.only(bottom: 10),
               color: theme.colorScheme.surface,
@@ -270,7 +298,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 side: BorderSide(
                   color: theme.colorScheme.outline.withValues(alpha: 0.3),
                 ),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(16),
               ),
               child: SwitchListTile(
                 secondary: Icon(
@@ -339,6 +367,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 },
               ),
             ),
+            ),
             if (state.loading) ...[
               const SizedBox(height: 4),
               const LinearProgressIndicator(),
@@ -353,38 +382,47 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
             ],
             const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: () async {
-                final navigator = Navigator.of(context);
-
-                final shouldLogout = await showDialog<bool>(
-                  context: context,
-                  builder: (dialogContext) => AlertDialog(
-                    title: const Text('Logout'),
-                    content: const Text('Are you sure you want to logout?'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(dialogContext, false),
-                        child: const Text('Cancel'),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(dialogContext, true),
-                        child: const Text('Logout'),
-                      ),
-                    ],
+            ProfileEntryTransition(
+              order: 7,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                );
+                ),
+                onPressed: () async {
+                  final navigator = Navigator.of(context);
 
-                if (shouldLogout != true) return;
+                  final shouldLogout = await showDialog<bool>(
+                    context: context,
+                    builder: (dialogContext) => AlertDialog(
+                      title: const Text('Logout'),
+                      content: const Text('Are you sure you want to logout?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(dialogContext, false),
+                          child: const Text('Cancel'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(dialogContext, true),
+                          child: const Text('Logout'),
+                        ),
+                      ],
+                    ),
+                  );
 
-                await session.clearSession(preserveForBiometric: true);
-                ref.read(profileProvider.notifier).clear();
-                navigator.pushReplacement(
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                );
-              },
-              icon: const Icon(Icons.logout),
-              label: const Text("Logout"),
+                  if (shouldLogout != true) return;
+
+                  await session.clearSession(preserveForBiometric: true);
+                  ref.read(profileProvider.notifier).clear();
+                  navigator.pushReplacement(
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  );
+                },
+                icon: const Icon(Icons.logout),
+                label: const Text("Logout"),
+              ),
             ),
           ],
         ),
@@ -409,14 +447,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         side: BorderSide(
           color: theme.colorScheme.outline.withValues(alpha: 0.3),
         ),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
         leading: Icon(icon),
-        title: Text(title),
+        title: Text(
+          title,
+          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+        ),
         subtitle: subtitle == null
             ? null
-            : Text(subtitle, style: const TextStyle(fontSize: 12)),
+            : Text(subtitle, style: theme.textTheme.bodySmall),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: onTap,
       ),
@@ -449,6 +491,37 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class ProfileEntryTransition extends StatelessWidget {
+  final Widget child;
+  final int order;
+
+  const ProfileEntryTransition({
+    super.key,
+    required this.child,
+    required this.order,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final duration = Duration(milliseconds: 260 + (order * 30));
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: duration,
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - value) * 12),
+            child: child,
+          ),
+        );
+      },
+      child: child,
     );
   }
 }
