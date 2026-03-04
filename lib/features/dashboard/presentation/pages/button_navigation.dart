@@ -62,22 +62,23 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final screens = [
-      HomeScreen(refreshTrigger: _homeRefreshToken),
-      AddScreen(
-        onPostCreated: () {
-          setState(() {
-            _homeRefreshToken++;
-            _currentIndex = 0;
-          });
-        },
-      ),
-      const FavouriteScreen(),
-      const ProfileScreen(),
-    ];
-
     return Scaffold(
-      body: screens[_currentIndex],
+      body: IndexedStack(
+        index: _currentIndex,
+        children: [
+          HomeScreen(refreshTrigger: _homeRefreshToken),
+          AddScreen(
+            onPostCreated: () {
+              setState(() {
+                _homeRefreshToken++;
+                _currentIndex = 0;
+              });
+            },
+          ),
+          const FavouriteScreen(),
+          const ProfileScreen(),
+        ],
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) {
