@@ -5,13 +5,15 @@ class ApiEndpoints {
   ApiEndpoints._();
 
   // Configuration
-  static const bool isPhysicalDevice = true;
-  static const String _ipAddress = '192.168.254.53';
-  static const int _port = 5000;
+  static const String _configuredHost = String.fromEnvironment(
+    'API_HOST',
+    defaultValue: '',
+  );
+  static const int _port = int.fromEnvironment('API_PORT', defaultValue: 5000);
 
   // Base URLs
   static String get _host {
-    if (isPhysicalDevice) return _ipAddress;
+    if (_configuredHost.isNotEmpty) return _configuredHost;
     if (kIsWeb || Platform.isIOS) return 'localhost';
     if (Platform.isAndroid) return '10.0.2.2';
     return 'localhost';
