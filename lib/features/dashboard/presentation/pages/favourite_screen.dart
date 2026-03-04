@@ -1,5 +1,6 @@
 import 'package:blogify/core/api/api_endpoint.dart';
 import 'package:blogify/core/services/storage/user_session_service.dart';
+import 'package:blogify/features/auth/presentation/pages/signup_screen.dart';
 import 'package:blogify/features/dashboard/presentation/pages/home_screen.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -15,10 +16,14 @@ class FavouriteScreen extends ConsumerStatefulWidget {
 
 class _FavouriteScreenState extends ConsumerState<FavouriteScreen> {
   late Future<List<HomePost>> _favouritePostsFuture;
+  String? _currentUserId;
+  final Map<String, bool> _likedOverrides = <String, bool>{};
+  final Map<String, int> _likeCountOverrides = <String, int>{};
 
   @override
   void initState() {
     super.initState();
+    _currentUserId = ref.read(userSessionServiceProvider).getCurrentUserId();
     _favouritePostsFuture = _fetchFavouritePosts();
   }
 
@@ -52,7 +57,7 @@ class _FavouriteScreenState extends ConsumerState<FavouriteScreen> {
 
     final posts = list
         .map((item) => HomePost.fromJson(item as Map<String, dynamic>))
-        .where((post) => post.isLikedBy(currentUserId))
+      .where((post) => PostFavouritesStore.isFavourited(post.id))
         .toList();
 
     return posts;
@@ -65,38 +70,126 @@ class _FavouriteScreenState extends ConsumerState<FavouriteScreen> {
     await _favouritePostsFuture;
   }
 
-  Future<void> _toggleLike(HomePost post) async {
-    try {
-      final session = ref.read(userSessionServiceProvider);
-      final token = await session.getToken();
+  Future<Dio?> _buildAuthorizedDio() async {
+    final token = await ref.read(userSessionServiceProvider).getToken();
+    if (token == null || token.isEmpty) {
+      await _handleSessionExpired();
+      return null;
+    }
 
-      if (token == null || token.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Please login again.')));
-        }
+    return Dio(
+      BaseOptions(
+        baseUrl: ApiEndpoints.baseUrl,
+        connectTimeout: ApiEndpoints.connectionTimeout,
+        receiveTimeout: ApiEndpoints.receiveTimeout,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'x-auth-token': token,
+        },
+      ),
+    );
+  }
+
+  Future<void> _handleSessionExpired() async {
+    final session = ref.read(userSessionServiceProvider);
+    await session.clearSession();
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Session expired. Please login again.')),
+    );
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const SignupScreen()),
+      (_) => false,
+    );
+  }
+
+  String _extractErrorMessage(DioException e, String fallback) {
+    final data = e.response?.data;
+    if (data is Map<String, dynamic>) {
+      final message = data['message']?.toString();
+      if (message != null && message.trim().isNotEmpty) {
+        return message;
+      }
+    }
+    return fallback;
+  }
+
+  Future<void> _openComments(HomePost post) async {
+    final session = ref.read(userSessionServiceProvider);
+    final userName =
+        session.getCurrentUserFullName() ?? session.getCurrentUserEmail() ?? 'You';
+    final token = await session.getToken();
+
+    if (!mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => PostCommentsBottomSheet(
+        post: post,
+        currentUserName: userName,
+        authToken: token,
+      ),
+    );
+  }
+
+  Future<void> _toggleLike(HomePost post) async {
+    final dio = await _buildAuthorizedDio();
+    if (dio == null) return;
+
+    final previousLiked = _isPostLiked(post);
+    final previousCount = _postLikeCount(post);
+
+    setState(() {
+      _likedOverrides[post.id] = !previousLiked;
+      final nextCount = previousLiked ? previousCount - 1 : previousCount + 1;
+      _likeCountOverrides[post.id] = nextCount < 0 ? 0 : nextCount;
+    });
+
+    try {
+      await dio.post(ApiEndpoints.postLikeUnlike(post.id));
+    } on DioException catch (e) {
+      setState(() {
+        _likedOverrides[post.id] = previousLiked;
+        _likeCountOverrides[post.id] = previousCount;
+      });
+
+      if (e.response?.statusCode == 401) {
+        await _handleSessionExpired();
         return;
       }
 
-      final dio = Dio(
-        BaseOptions(
-          baseUrl: ApiEndpoints.baseUrl,
-          connectTimeout: ApiEndpoints.connectionTimeout,
-          receiveTimeout: ApiEndpoints.receiveTimeout,
-          headers: {'Authorization': 'Bearer $token'},
-        ),
-      );
-
-      await dio.post(ApiEndpoints.postLikeUnlike(post.id));
-      await _reloadFavourites();
-    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        ).showSnackBar(
+          SnackBar(content: Text(_extractErrorMessage(e, 'Failed to update like.'))),
+        );
+      }
+    } catch (_) {
+      setState(() {
+        _likedOverrides[post.id] = previousLiked;
+        _likeCountOverrides[post.id] = previousCount;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Failed to update like.')));
       }
     }
+  }
+
+  void _toggleFavourite(HomePost post) {
+    setState(() {
+      PostFavouritesStore.toggle(post.id);
+      _favouritePostsFuture = _fetchFavouritePosts();
+    });
   }
 
   String _formatDate(String? isoDate) {
@@ -109,13 +202,19 @@ class _FavouriteScreenState extends ConsumerState<FavouriteScreen> {
     }
   }
 
+  bool _isPostLiked(HomePost post) {
+    return _likedOverrides[post.id] ?? post.isLikedBy(_currentUserId);
+  }
+
+  int _postLikeCount(HomePost post) {
+    return _likeCountOverrides[post.id] ?? post.likesCount;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    final currentUserId = ref
-        .read(userSessionServiceProvider)
-        .getCurrentUserId();
+    const double horizontalPadding = 20;
+    const double cardRadius = 18;
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -123,7 +222,8 @@ class _FavouriteScreenState extends ConsumerState<FavouriteScreen> {
         title: Text(
           'Saved Blogs',
           style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.2,
           ),
         ),
         backgroundColor: theme.scaffoldBackgroundColor,
@@ -141,13 +241,18 @@ class _FavouriteScreenState extends ConsumerState<FavouriteScreen> {
             if (snapshot.hasError) {
               return ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(
+                  horizontalPadding,
+                  16,
+                  horizontalPadding,
+                  16,
+                ),
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
                       color: theme.colorScheme.errorContainer,
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(cardRadius),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -177,18 +282,23 @@ class _FavouriteScreenState extends ConsumerState<FavouriteScreen> {
             if (posts.isEmpty) {
               return ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(
+                  horizontalPadding,
+                  16,
+                  horizontalPadding,
+                  16,
+                ),
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(22),
                     decoration: BoxDecoration(
                       color: theme.colorScheme.surface,
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(cardRadius),
                     ),
                     child: Column(
                       children: [
                         Icon(
-                          Icons.favorite_border_rounded,
+                          Icons.bookmark_border_rounded,
                           size: 36,
                           color: theme.colorScheme.primary,
                         ),
@@ -202,7 +312,7 @@ class _FavouriteScreenState extends ConsumerState<FavouriteScreen> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Like posts from Home to see them here.',
+                          'Tap bookmark on Home posts to see them here.',
                           style: theme.textTheme.bodyMedium,
                           textAlign: TextAlign.center,
                         ),
@@ -215,7 +325,12 @@ class _FavouriteScreenState extends ConsumerState<FavouriteScreen> {
 
             return ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(
+                horizontalPadding,
+                16,
+                horizontalPadding,
+                24,
+              ),
               children: [
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -228,12 +343,12 @@ class _FavouriteScreenState extends ConsumerState<FavouriteScreen> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(cardRadius),
                   ),
                   child: Row(
                     children: [
                       Icon(
-                        Icons.favorite_rounded,
+                        Icons.bookmark_rounded,
                         color: theme.colorScheme.onPrimaryContainer,
                       ),
                       const SizedBox(width: 10),
@@ -249,29 +364,37 @@ class _FavouriteScreenState extends ConsumerState<FavouriteScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                ...posts.map((post) {
+                const SizedBox(height: 18),
+                ...posts.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final post = entry.value;
                   return Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: PostCard(
-                      title: post.title,
-                      excerpt: post.content,
-                      imageUrl: post.imageUrl,
-                      author: post.authorName,
-                      authorImageUrl: post.authorImageUrl,
-                      authorRole: post.authorRole,
-                      date: _formatDate(post.date),
-                      likes: post.likesCount,
-                      isLiked: post.isLikedBy(currentUserId),
-                      onReadMore: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => PostDetailScreen(post: post),
-                          ),
-                        );
-                      },
-                      onFavouriteTap: () => _toggleLike(post),
+                    padding: const EdgeInsets.only(bottom: 18),
+                    child: FadeSlideIn(
+                      duration: Duration(milliseconds: 260 + (index * 25)),
+                      child: PostCard(
+                        title: post.title,
+                        excerpt: post.content,
+                        imageUrl: post.imageUrl,
+                        author: post.authorName,
+                        authorImageUrl: post.authorImageUrl,
+                        authorRole: post.authorRole,
+                        date: _formatDate(post.date),
+                        likes: _postLikeCount(post),
+                        isLiked: _isPostLiked(post),
+                        isFavourited: PostFavouritesStore.isFavourited(post.id),
+                        onReadMore: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => PostDetailScreen(post: post),
+                            ),
+                          );
+                        },
+                        onCommentTap: () => _openComments(post),
+                        onLikeTap: () => _toggleLike(post),
+                        onFavouriteTap: () => _toggleFavourite(post),
+                      ),
                     ),
                   );
                 }),
