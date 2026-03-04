@@ -333,6 +333,32 @@ class _MyBlogsScreenState extends ConsumerState<MyBlogsScreen> {
     }
   }
 
+  Future<void> _openComments(HomePost post) async {
+    final session = ref.read(userSessionServiceProvider);
+    final userName =
+        session.getCurrentUserFullName() ?? session.getCurrentUserEmail() ?? 'You';
+    final token = await session.getToken();
+
+    if (!mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => PostCommentsBottomSheet(
+        post: post,
+        currentUserName: userName,
+        authToken: token,
+      ),
+    );
+  }
+
+  void _toggleFavourite(HomePost post) {
+    setState(() {
+      PostFavouritesStore.toggle(post.id);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -526,50 +552,58 @@ class _MyBlogsScreenState extends ConsumerState<MyBlogsScreen> {
                   ),
                 ),
                 const SizedBox(height: 14),
-                ...posts.map((post) {
+                ...posts.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final post = entry.value;
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 16),
-                    child: PostCard(
-                      title: post.title,
-                      excerpt: post.content,
-                      imageUrl: post.imageUrl,
-                      author: post.authorName,
-                      authorImageUrl: post.authorImageUrl,
-                      authorRole: post.authorRole,
-                      date: _formatDate(post.date),
-                      likes: post.likesCount,
-                      isLiked: post.isLikedBy(currentUserId),
-                      onReadMore: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => PostDetailScreen(post: post),
-                          ),
-                        );
-                      },
-                      onFavouriteTap: () {},
-                      footer: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          TextButton.icon(
-                            onPressed: () => _showEditDialog(post),
-                            icon: const Icon(Icons.edit_outlined, size: 18),
-                            label: const Text('Edit'),
-                          ),
-                          const SizedBox(width: 8),
-                          TextButton.icon(
-                            onPressed: () => _deletePost(post),
-                            icon: Icon(
-                              Icons.delete_outline,
-                              size: 18,
-                              color: theme.colorScheme.error,
+                    child: FadeSlideIn(
+                      duration: Duration(milliseconds: 260 + (index * 25)),
+                      child: PostCard(
+                        title: post.title,
+                        excerpt: post.content,
+                        imageUrl: post.imageUrl,
+                        author: post.authorName,
+                        authorImageUrl: post.authorImageUrl,
+                        authorRole: post.authorRole,
+                        date: _formatDate(post.date),
+                        likes: post.likesCount,
+                        isLiked: post.isLikedBy(currentUserId),
+                        isFavourited: PostFavouritesStore.isFavourited(post.id),
+                        onReadMore: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => PostDetailScreen(post: post),
                             ),
-                            label: Text(
-                              'Delete',
-                              style: TextStyle(color: theme.colorScheme.error),
+                          );
+                        },
+                        onCommentTap: () => _openComments(post),
+                        onLikeTap: () {},
+                        onFavouriteTap: () => _toggleFavourite(post),
+                        footer: Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton.icon(
+                              onPressed: () => _showEditDialog(post),
+                              icon: const Icon(Icons.edit_outlined, size: 18),
+                              label: const Text('Edit'),
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 8),
+                            TextButton.icon(
+                              onPressed: () => _deletePost(post),
+                              icon: Icon(
+                                Icons.delete_outline,
+                                size: 18,
+                                color: theme.colorScheme.error,
+                              ),
+                              label: Text(
+                                'Delete',
+                                style: TextStyle(color: theme.colorScheme.error),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   );
