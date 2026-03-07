@@ -1,9 +1,12 @@
 import 'package:blogify/core/api/api_endpoint.dart';
+import 'package:blogify/core/providers/profile_provider.dart';
 import 'package:blogify/core/services/storage/user_session_service.dart';
+import 'package:blogify/core/widgets/smart_network_avatar.dart';
 import 'package:blogify/features/auth/presentation/pages/login_screen.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
   const EditProfileScreen({super.key});
@@ -26,6 +29,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     final session = ref.read(userSessionServiceProvider);
     _nameController.text = session.getCurrentUserFullName() ?? '';
     _emailController.text = session.getCurrentUserEmail() ?? '';
+    Future.microtask(() => ref.read(profileProvider.notifier).loadProfile());
   }
 
   @override
@@ -183,6 +187,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
     if (confirmed != true) return;
 
+    final password = await _promptDeletionPassword();
+    if (password == null) return;
+
     setState(() {
       _isDeleting = true;
     });
@@ -191,9 +198,23 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       final session = ref.read(userSessionServiceProvider);
       final token = await session.getToken();
       final userId = session.getCurrentUserId();
+      final email = session.getCurrentUserEmail();
 
       if (token == null || token.isEmpty) {
         throw Exception('Session expired. Please login again.');
+      }
+
+      if (email == null || email.trim().isEmpty) {
+        throw Exception('Unable to verify password. Please login again.');
+      }
+
+      final passwordVerified = await _verifyDeletePassword(
+        email: email.trim(),
+        password: password,
+      );
+
+      if (!passwordVerified) {
+        throw Exception('Incorrect password. Account was not deleted.');
       }
 
       final dio = Dio(
@@ -201,23 +222,21 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           baseUrl: ApiEndpoints.serverUrl,
           connectTimeout: ApiEndpoints.connectionTimeout,
           receiveTimeout: ApiEndpoints.receiveTimeout,
-          headers: {
-            'Authorization': 'Bearer $token',
-            'x-auth-token': token,
-          },
+          headers: {'Authorization': 'Bearer $token', 'x-auth-token': token},
         ),
       );
 
-      final response = await _deleteAccountWithFallback(dio, userId: userId);
+      final response = await _deleteAccountWithFallback(
+        dio,
+        userId: userId,
+        password: password,
+      );
       final data = response.data;
-      final success = data is Map<String, dynamic>
-          ? data['success'] != false
-          : true;
+      final success = data['success'] != false;
 
       if (!success) {
-        final message = data is Map<String, dynamic>
-            ? data['message']?.toString() ?? 'Failed to delete account.'
-            : 'Failed to delete account.';
+        final message =
+            data['message']?.toString() ?? 'Failed to delete account.';
         throw Exception(message);
       }
 
@@ -260,7 +279,14 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   Future<Response<dynamic>> _deleteAccountWithFallback(
     Dio dio, {
     required String? userId,
+    required String password,
   }) async {
+    final payload = {
+      'password': password,
+      'currentPassword': password,
+      'confirmPassword': password,
+    };
+
     final endpoints = [
       '/api/profile/delete-account',
       '/api/profile/delete-profile',
@@ -273,7 +299,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
     for (final endpoint in endpoints) {
       try {
-        return await dio.delete(endpoint);
+        return await dio.delete(endpoint, data: payload);
       } on DioException catch (e) {
         lastError = e;
         final status = e.response?.statusCode;
@@ -287,78 +313,355 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     throw Exception('Delete account endpoint not found.');
   }
 
+  Future<String?> _promptDeletionPassword() async {
+    final controller = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    bool obscure = true;
+
+    final password = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Confirm your password'),
+              content: Form(
+                key: formKey,
+                child: TextFormField(
+                  controller: controller,
+                  autofocus: true,
+                  obscureText: obscure,
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      onPressed: () {
+                        setStateDialog(() {
+                          obscure = !obscure;
+                        });
+                      },
+                      icon: Icon(
+                        obscure ? Icons.visibility_off : Icons.visibility,
+                      ),
+                    ),
+                  ),
+                  validator: (value) {
+                    if ((value ?? '').trim().isEmpty) {
+                      return 'Password is required';
+                    }
+                    return null;
+                  },
+                  onFieldSubmitted: (_) {
+                    final valid = formKey.currentState?.validate() ?? false;
+                    if (valid) {
+                      Navigator.of(dialogContext).pop(controller.text.trim());
+                    }
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final valid = formKey.currentState?.validate() ?? false;
+                    if (!valid) return;
+                    Navigator.of(dialogContext).pop(controller.text.trim());
+                  },
+                  child: const Text('Continue'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    return password;
+  }
+
+  Future<bool> _verifyDeletePassword({
+    required String email,
+    required String password,
+  }) async {
+    final verifier = Dio(
+      BaseOptions(
+        connectTimeout: ApiEndpoints.connectionTimeout,
+        receiveTimeout: ApiEndpoints.receiveTimeout,
+      ),
+    );
+
+    try {
+      final response = await verifier.post(
+        '${ApiEndpoints.baseUrl}${ApiEndpoints.customerLogin}',
+        data: {'email': email, 'password': password},
+      );
+
+      final data = response.data;
+      if (data is! Map<String, dynamic>) return false;
+
+      final success = data['success'] == true;
+      final token = data['token']?.toString();
+
+      return success && token != null && token.isNotEmpty;
+    } on DioException {
+      return false;
+    }
+  }
+
+  void _showPicker(BuildContext context, ProfileController controller) {
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('Take photo'),
+              onTap: () {
+                Navigator.pop(context);
+                controller.pickAndUpload(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choose from gallery'),
+              onTap: () {
+                Navigator.pop(context);
+                controller.pickAndUpload(ImageSource.gallery);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final session = ref.read(userSessionServiceProvider);
+    final profileState = ref.watch(profileProvider);
+    final profileController = ref.read(profileProvider.notifier);
+    final displayName = _nameController.text.trim().isEmpty
+        ? (session.getCurrentUserFullName() ?? 'User')
+        : _nameController.text.trim();
+    final displayEmail = _emailController.text.trim().isEmpty
+        ? (session.getCurrentUserEmail() ?? '')
+        : _emailController.text.trim();
+
     return Scaffold(
       appBar: AppBar(title: const Text('Edit profile')),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              TextFormField(
-                controller: _nameController,
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: 'Name',
-                  border: OutlineInputBorder(),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    theme.colorScheme.primaryContainer,
+                    theme.colorScheme.tertiaryContainer,
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                validator: _validateName,
+                borderRadius: BorderRadius.circular(20),
               ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  border: OutlineInputBorder(),
-                ),
-                validator: _validateEmail,
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isSaving ? null : _saveProfile,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: _isSaving
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Save changes'),
+              child: Column(
+                children: [
+                  Stack(
+                    alignment: Alignment.bottomRight,
+                    children: [
+                      SmartNetworkAvatar(
+                        radius: 52,
+                        backgroundColor: theme.colorScheme.surface,
+                        imageUrls: ApiEndpoints.resolveMediaUrlCandidates(
+                          profileState.imageUrl,
+                        ),
+                        fallback: Icon(
+                          Icons.person,
+                          size: 54,
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.68,
+                          ),
+                        ),
+                      ),
+                      Material(
+                        color: theme.colorScheme.primary,
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: profileState.loading
+                              ? null
+                              : () => _showPicker(context, profileController),
+                          child: const Padding(
+                            padding: EdgeInsets.all(8),
+                            child: Icon(
+                              Icons.edit,
+                              size: 18,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: (_isSaving || _isDeleting)
-                      ? null
-                      : _confirmAndDeleteAccount,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Theme.of(context).colorScheme.error,
-                    side: BorderSide(
-                      color: Theme.of(context).colorScheme.error,
+                  const SizedBox(height: 12),
+                  Text(
+                    displayName,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: theme.colorScheme.onPrimaryContainer,
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
-                  icon: _isDeleting
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.delete_outline),
-                  label: const Text('Delete account'),
+                  if (displayEmail.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      displayEmail,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onPrimaryContainer,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    alignment: WrapAlignment.center,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: profileState.loading
+                            ? null
+                            : () => profileController.pickAndUpload(
+                                ImageSource.gallery,
+                              ),
+                        icon: const Icon(Icons.photo_library_outlined),
+                        label: const Text('Gallery'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: profileState.loading
+                            ? null
+                            : () => profileController.pickAndUpload(
+                                ImageSource.camera,
+                              ),
+                        icon: const Icon(Icons.camera_alt_outlined),
+                        label: const Text('Camera'),
+                      ),
+                    ],
+                  ),
+                  if (profileState.loading) ...[
+                    const SizedBox(height: 12),
+                    const LinearProgressIndicator(),
+                  ],
+                  if (profileState.error != null) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      profileState.error!,
+                      style: TextStyle(color: theme.colorScheme.error),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(
+                  color: theme.colorScheme.outline.withValues(alpha: 0.25),
                 ),
               ),
-            ],
-          ),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Account details',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: _nameController,
+                        textInputAction: TextInputAction.next,
+                        decoration: const InputDecoration(
+                          labelText: 'Name',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.person_outline),
+                        ),
+                        validator: _validateName,
+                      ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: const InputDecoration(
+                          labelText: 'Email',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.email_outlined),
+                        ),
+                        validator: _validateEmail,
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _isSaving ? null : _saveProfile,
+                          icon: _isSaving
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.check_circle_outline),
+                          label: const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            child: Text('Save changes'),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: (_isSaving || _isDeleting)
+                    ? null
+                    : _confirmAndDeleteAccount,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: theme.colorScheme.error,
+                  side: BorderSide(color: theme.colorScheme.error),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                icon: _isDeleting
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.delete_outline),
+                label: Text(_isDeleting ? 'Deleting...' : 'Delete account'),
+              ),
+            ),
+          ],
         ),
       ),
     );
