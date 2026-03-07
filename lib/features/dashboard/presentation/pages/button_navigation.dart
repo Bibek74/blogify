@@ -22,40 +22,38 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
     super.initState();
     if (widget.showLoginSuccessPopup) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        BuildContext? successDialogContext;
-        showDialog<void>(
-          context: context,
-          barrierDismissible: false,
-          builder: (dialogContext) {
-            successDialogContext = dialogContext;
-            return AlertDialog(
-              title: const Text('Success'),
-              content: const Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.check_circle, color: Colors.green, size: 48),
-                  SizedBox(height: 12),
-                  Text('Login successful!'),
-                ],
-              ),
-            );
-          },
-        ).then((_) {
-          successDialogContext = null;
-        });
-
-        Future.delayed(const Duration(seconds: 2), () {
-          if (!mounted) return;
-          final dialogContext = successDialogContext;
-          if (dialogContext != null &&
-              dialogContext.mounted &&
-              Navigator.canPop(dialogContext)) {
-            Navigator.of(dialogContext).pop();
-          }
-        });
+        _showLoginSuccessDialog();
       });
     }
+  }
+
+  Future<void> _showLoginSuccessDialog() async {
+    if (!mounted) return;
+
+    final dialogFuture = showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (dialogContext) {
+        return const AlertDialog(
+          title: Text('Success'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.check_circle, color: Colors.green, size: 48),
+              SizedBox(height: 12),
+              Text('Login successful!'),
+            ],
+          ),
+        );
+      },
+    );
+
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+
+    await Navigator.of(context, rootNavigator: true).maybePop();
+    await dialogFuture;
   }
 
   @override
