@@ -71,6 +71,10 @@ class UserSessionService {
     await _prefs.setBool(_keyOnboardingSeen, true);
   }
 
+  Future<void> resetOnboardingSeen() async {
+    await _prefs.remove(_keyOnboardingSeen);
+  }
+
   bool isBiometricEnabled() {
     return _prefs.getBool(_keyBiometricEnabled) ?? false;
   }
