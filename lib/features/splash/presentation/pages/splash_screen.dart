@@ -15,6 +15,10 @@ class SplashScreen extends ConsumerStatefulWidget {
 
 class _SplashScreenState extends ConsumerState<SplashScreen> {
   final LocalAuthentication _localAuth = LocalAuthentication();
+  static const bool _forceOnboarding = bool.fromEnvironment(
+    'FORCE_ONBOARDING',
+    defaultValue: false,
+  );
 
   @override
   void initState() {
@@ -23,6 +27,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       if (!mounted) return;
 
       final session = ref.read(userSessionServiceProvider);
+
+      if (_forceOnboarding) {
+        await session.resetOnboardingSeen();
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+        );
+        return;
+      }
+
       final hasSeenOnboarding = session.hasSeenOnboarding();
       final isBiometricEnabled = session.isBiometricEnabled();
 
